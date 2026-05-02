@@ -1,421 +1,406 @@
-```md
-# HNG Stage 3 - Anomaly Detection / DDoS Detection Tool (DevSecOps)
+**🚀 HNG Stage 3 – Real-Time Anomaly & DDoS Detection Engine (DevSecOps)**
 
-This project is a real-time anomaly detection engine built to monitor incoming HTTP traffic for a Nextcloud deployment. It continuously tails Nginx JSON access logs, learns normal traffic behavior, detects abnormal spikes (per-IP and global), and automatically responds by banning suspicious IPs using `iptables`.
+This project implements a real-time anomaly detection system designed to monitor and protect a publicly accessible Nextcloud deployment.
+The system continuously analyzes incoming HTTP traffic using Nginx access logs, learns normal behavior dynamically, detects abnormal spikes, and automatically mitigates threats by blocking malicious IPs using iptables.
+It also provides a live monitoring dashboard and Slack-based alerting system for real-time visibility.
 
-The tool also provides a live dashboard for monitoring system health, request rates, baseline metrics, and banned IPs.
+🌐 Live Deployment
 
----
 
-## 🚀 Live Deployment Details
+Server IP: 100.27.253.179
 
-- **Server IP:** `100.27.253.179`
-- **Nextcloud URL:** `http://100.27.253.179:8080`
-- **Live Metrics Dashboard (Submission URL):** `http://hngmetrics.duckdns.org`
 
----
+Nextcloud URL: http://100.27.253.179:8080
 
-## 🛠️ Language Choice
 
-This project was implemented in **Python** because:
-- Python provides fast development speed for security tooling.
-- Built-in data structures like `deque` make sliding-window tracking efficient.
-- It integrates easily with Slack notifications and system commands like `iptables`.
+Live Metrics Dashboard: http://hngmetrics.duckdns.org
 
----
 
-## 🏗️ Architecture Overview
 
-The system runs as 3 Docker containers:
+🧠 Why Python?
+Python was chosen for the following reasons:
 
-1. **Nextcloud Container**
-   - Uses the prebuilt image: `kefaslungu/hng-nextcloud`
-   - Runs the Nextcloud application
 
-2. **Nginx Reverse Proxy**
-   - Fronts Nextcloud
-   - Logs all requests in JSON format to a shared named volume
+Fast and efficient development for security tooling
 
-3. **Detector Daemon**
-   - Continuously tails Nginx logs
-   - Maintains sliding windows and baselines
-   - Detects anomalies
-   - Blocks malicious IPs using iptables
-   - Sends Slack alerts
-   - Serves a live dashboard
 
-All logs are written to the named Docker volume:
+Built-in data structures like deque for sliding window operations
 
-`HNG-nginx-logs`
 
----
+Easy integration with system tools (iptables) and APIs (Slack webhooks)
 
-## 📌 Key Features Implemented
 
-✅ Real-time Nginx log monitoring  
-✅ Sliding window (60 seconds) tracking global + per-IP traffic  
-✅ Rolling baseline learning (30 minutes) with mean/stddev recalculation every 60 seconds  
-✅ Z-score anomaly detection (z > 3.0) OR multiplier rule (> 5× baseline mean)  
-✅ Error surge tightening (4xx/5xx spike increases sensitivity)  
-✅ Per-IP blocking using `iptables DROP` rules  
-✅ Global anomaly alert (Slack only)  
-✅ Auto-unban schedule: **10 mins → 30 mins → 2 hours → Permanent**  
-✅ Slack alerts for bans, unbans, and global spikes  
-✅ Live metrics dashboard refreshing every 3 seconds  
-✅ Structured audit logs (ban/unban/baseline recalculation events)  
-✅ Baseline graph generation showing hourly slot changes
+Strong ecosystem for monitoring and data processing
 
----
 
-# 📊 How the Sliding Window Works (Deque)
 
-The detector maintains a **60-second sliding window** using `collections.deque`.
+🏗️ System Architecture
+The solution is deployed using Docker Compose with three core services:
+1. Nextcloud Container
 
-### Global Window
-- A `deque()` stores timestamps of all requests globally.
-- Every request adds `time.time()` to the deque.
-- Old timestamps older than 60 seconds are removed from the left.
 
-Example eviction logic:
+Image: kefaslungu/hng-nextcloud
 
-- Append timestamp
-- While leftmost timestamp < (now - 60): pop left
 
-This ensures the deque always contains only the last 60 seconds of requests.
+Hosts the application
 
-### Per-IP Window
-- A dictionary maps IP → deque of timestamps
-- Each IP deque is maintained the same way (append and evict)
 
-### Request Rate Calculation
-Rate is calculated as:
+Not modified (as required)
 
-- **global req/s = len(global_window) / 60**
-- **ip req/s = len(ip_window[ip]) / 60**
 
-This makes the rate accurate and continuously updated.
+2. Nginx Reverse Proxy
 
----
 
-# 📈 Rolling Baseline Learning (30 Minutes)
+Acts as the public entry point
 
-The baseline manager records **per-second request counts** and keeps a rolling history.
 
-### How baseline works:
-- Every second, the daemon records the number of requests received in that second.
-- It stores counts for up to **30 minutes** (1800 seconds).
-- Every **60 seconds**, it recalculates:
-  - mean (average req/s)
-  - standard deviation
+Forwards traffic to Nextcloud
 
-### Hour Slot Preference
-The tool stores baselines per hour slot.
-If the current hour has enough data, it prefers that baseline.
 
-This prevents a baseline learned at midnight from incorrectly applying at peak hours.
+Logs all requests in structured JSON format
 
-### Floor Values
-To avoid division by zero and false anomalies:
 
-- minimum mean = 1.0
-- minimum std = 1.0
+3. Detector Daemon (Core Engine)
 
----
 
-# 🚨 Detection Logic
+Continuously tails Nginx logs
 
-The tool flags anomalies using:
 
-### 1. Z-score Detection
-A request rate is anomalous if:
+Computes real-time traffic metrics
 
-```
 
+Learns baseline behavior dynamically
+
+
+Detects anomalies (global + per-IP)
+
+
+Blocks malicious IPs using iptables
+
+
+Sends Slack alerts
+
+
+Hosts a live monitoring dashboard
+
+
+
+📦 Shared Logging (Named Volume)
+All Nginx logs are written to a Docker named volume:
+HNG-nginx-logs
+Usage:
+
+
+Nginx → writes logs (read/write)
+
+
+Detector → reads logs (read-only)
+
+
+Nextcloud → reads logs (read-only)
+
+
+This ensures:
+
+
+Persistence
+
+
+Safe sharing between containers
+
+
+Real-time monitoring without interference
+
+
+
+📊 Sliding Window Traffic Analysis (60 Seconds)
+The system uses a sliding window approach to calculate real-time request rates.
+Implementation
+
+
+Uses collections.deque
+
+
+Stores timestamps of incoming requests
+
+
+Removes entries older than 60 seconds
+
+
+Metrics
+
+
+Global Rate: len(global_window) / 60
+
+
+Per-IP Rate: len(ip_window[ip]) / 60
+
+
+Why deque?
+
+
+O(1) append and removal
+
+
+Ideal for real-time streaming data
+
+
+
+📈 Rolling Baseline Learning (30 Minutes)
+The system dynamically learns “normal” traffic behavior.
+How It Works
+
+
+Counts requests per second
+
+
+Stores last 1800 seconds (30 minutes)
+
+
+Recalculates every 60 seconds
+
+
+Metrics Computed
+
+
+Mean (average traffic)
+
+
+Standard deviation (traffic variation)
+
+
+Hour-Based Optimization
+
+
+Baselines are grouped per hour
+
+
+Prevents off-peak data affecting peak-time detection
+
+
+Safety Floors
+
+
+Minimum mean = 1.0
+
+
+Minimum stddev = 1.0
+
+
+Prevents:
+
+
+Division by zero
+
+
+False positives
+
+
+
+🚨 Anomaly Detection Logic
+An anomaly is triggered if either condition is met:
+1. Z-Score Detection
 z = (current_rate - mean) / std
-z > 3.0
 
-```
 
-### 2. Multiplier Rule
-A request rate is anomalous if:
+Trigger if: z > 3.0
 
-```
 
+2. Multiplier Rule
 current_rate > mean * 5
+This ensures detection of both:
 
-```
 
-Whichever triggers first causes an alert/ban.
+Statistical anomalies
 
----
 
-# ⚠️ Error Surge Detection (Threshold Tightening)
+Sudden traffic spikes
 
-The detector also tracks 4xx/5xx responses per IP.
 
-If an IP’s error rate becomes suspicious:
 
-```
-
+⚠️ Error Surge Detection (Adaptive Sensitivity)
+The system monitors error responses (4xx/5xx).
+If an IP shows abnormal error behavior:
 ip_error_rate > baseline_error_rate * 3
+Then detection becomes stricter:
 
-````
 
-Then the detector tightens thresholds:
+Z-score threshold → reduced (e.g. 2.5)
 
-- z-score threshold becomes stricter (e.g. 2.5)
-- multiplier becomes stricter (e.g. 3×)
 
-This catches attackers faster if they generate many failed requests.
+Multiplier → reduced (e.g. 3×)
 
----
 
-# 🔒 Blocking System (iptables)
+This allows faster detection of malicious activity.
 
-When a per-IP anomaly is detected, the tool blocks the IP:
-
-```bash
+🔒 Automated IP Blocking (iptables)
+When a per-IP anomaly is detected:
 iptables -A INPUT -s <ip> -j DROP
-````
+Why iptables?
 
-This immediately drops all traffic from that IP.
 
-The detector also records:
+Blocks traffic at kernel level
 
-* ban time
-* ban duration
-* strike stage
-* reason for ban
 
----
+Prevents load on application
 
-# 🔓 Auto-Unban Logic
 
-Each IP has escalating strikes:
+Immediate and efficient mitigation
 
-| Strike   | Duration   |
-| -------- | ---------- |
-| 1st ban  | 10 minutes |
-| 2nd ban  | 30 minutes |
-| 3rd ban  | 2 hours    |
-| 4th+ ban | Permanent  |
 
-Unbans happen automatically and trigger Slack notifications.
 
----
+🔁 Ban Escalation & Auto-Unban
+Each IP follows a progressive penalty system:
+StrikeDuration1st10 minutes2nd30 minutes3rd2 hours4th+Permanent
+Auto-Unban
 
-# 🔔 Slack Notifications
 
-Slack alerts include:
+System tracks ban time and duration
 
-* anomaly condition fired
-* current rate
-* baseline mean/stddev
-* timestamp
-* ban duration (if applicable)
 
-Slack webhook is stored in:
+Automatically removes expired bans
 
-`detector/config.yaml`
 
----
+Sends Slack notification on unban
 
-# 📺 Live Metrics Dashboard
 
-The detector runs a Flask dashboard served at:
 
-`http://hngmetrics.duckdns.org`
+🔔 Slack Notifications
+Real-time alerts are sent for:
 
-It refreshes every 3 seconds and shows:
 
-* uptime
-* global req/s
-* baseline mean/stddev
-* CPU usage
-* memory usage
-* banned IPs
-* top 10 IPs by traffic
+Global anomalies
 
----
 
-# 📝 Audit Logs
+IP bans
 
-All key actions are written in structured format:
 
-```
+IP unbans
+
+
+Each alert includes:
+
+
+Trigger condition
+
+
+Request rate
+
+
+Baseline values
+
+
+Timestamp
+
+
+Ban duration (if applicable)
+
+
+
+🔐 Note: Webhook URLs are excluded from the repository for security.
+
+
+📺 Live Metrics Dashboard
+Accessible at:
+http://hngmetrics.duckdns.org
+Features
+
+
+Refreshes every 3 seconds
+
+
+Displays:
+
+
+System uptime
+
+
+Global request rate
+
+
+Baseline mean & stddev
+
+
+CPU & memory usage
+
+
+Active banned IPs
+
+
+Top 10 IPs by traffic
+
+
+
+
+
+📝 Audit Logging
+All system actions are logged in structured format:
 [timestamp] ACTION ip | condition | rate | baseline | duration
-```
+Logged Events
 
-Logged actions include:
 
-* BASELINE_RECALC
-* GLOBAL_ALERT
-* BAN
-* UNBAN
+BASELINE_RECALC
 
-Audit log location:
 
-`detector/audit.log`
+GLOBAL_ALERT
 
----
 
-# 📂 Project Structure
+BAN
 
-```
-detector/
-  main.py
-  monitor.py
-  baseline.py
-  detector.py
-  blocker.py
-  unbanner.py
-  notifier.py
-  dashboard.py
-  baseline_graph.py
-  config.yaml
-  requirements.txt
 
-nginx/
-  nginx.conf
+UNBAN
 
-docs/
-  architecture.png
 
-screenshots/
-  Tool-running.png
-  Ban-slack.png
-  Unban-slack.png
-  Global-alert-slack.png
-  Iptables-banned.png
-  Audit-log.png
-  Baseline-graph.png
+📍 Location:
+detector/audit.log
 
-README.md
-docker-compose.yml
-```
+📁 Project Structure
+detector/  main.py  monitor.py  baseline.py  detector.py  blocker.py  unbanner.py  notifier.py  dashboard.py  baseline_graph.py  config.yaml  requirements.txtnginx/  nginx.confdocs/  architecture.pngscreenshots/  Tool-running.png  Ban-slack.png  Unban-slack.png  Global-alert-slack.png  Iptables-banned.png  Audit-log.png  Baseline-graph.pngdocker-compose.ymlREADME.md
 
----
-
-# 🖼️ Screenshots (Submission Proof)
-
-All required screenshots are included in `screenshots/`:
-
-1. Tool-running.png
-2. Ban-slack.png
-3. Unban-slack.png
-4. Global-alert-slack.png
-5. Iptables-banned.png
-6. Audit-log.png
-7. Baseline-graph.png
-
----
-
-# ⚙️ Setup Instructions (Fresh VPS)
-
-### 1. Update server
-
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
-### 2. Install Docker + Compose
-
-```bash
-sudo apt install -y docker.io docker-compose
-sudo systemctl enable docker
-sudo systemctl start docker
-sudo usermod -aG docker ubuntu
-newgrp docker
-```
-
-### 3. Clone repo
-
-```bash
-git clone git@github.com:mosesajayi458-pixel/hng14-stage3-devops.git
-cd hng14-stage3-devops
-```
-
-### 4. Start the stack
-
-```bash
-docker-compose up -d --build
-```
-
-### 5. Confirm services
-
-```bash
-docker ps
-```
-
-### 6. Confirm Nextcloud is reachable
-
-```bash
-curl -I http://localhost:8080
-```
-
-### 7. Confirm dashboard is reachable
-
-```bash
-curl http://localhost:5000
-```
-
-### 8. Check logs
-
-```bash
-docker logs -f detector
-```
-
----
-
-# 🧪 Attack Simulation Testing
-
-### Simulate heavy traffic using ApacheBench:
-
-```bash
+🧪 Testing (Attack Simulation)
+Simulate high traffic using ApacheBench:
 ab -n 20000 -c 500 http://100.27.253.179:8080/
-```
+Verification Steps
 
-Check bans:
 
-```bash
+Check Slack alerts
+
+
+Check audit logs
+
+
+Confirm blocked IPs:
+
+
 docker exec -it detector iptables -L INPUT -n --line-numbers
-```
 
----
-
-# 📈 Baseline Graph Generator
-
-Run inside detector container:
-
-```bash
+📈 Baseline Graph Generation
+Generate baseline visualization:
 docker exec -it detector python baseline_graph.py
-```
-
-Copy output file:
-
-```bash
+Copy output:
 docker cp detector:/app/Baseline-graph.png ./screenshots/Baseline-graph.png
-```
 
----
+🛠️ Setup Instructions (Fresh VPS)
+1. Update System
+sudo apt update && sudo apt upgrade -y
+2. Install Docker
+sudo apt install -y docker.io docker-composesudo systemctl enable dockersudo systemctl start dockersudo usermod -aG docker ubuntunewgrp docker
+3. Clone Repository
+git clone git@github.com:mosesajayi458-pixel/hng14-stage3-devops.gitcd hng14-stage3-devops
+4. Start Services
+docker-compose up -d --build
+5. Verify
+docker pscurl -I http://localhost:8080curl http://localhost:5000docker logs -f detector
 
-# 📝 Blog Post Link
+📝 Blog Post
 https://medium.com/@mosesajayi458/building-a-real-time-anomaly-detection-engine-ddos-detection-tool-with-python-nginx-logs-and-83af63bd8bcf
 
----
+🔗 GitHub Repository
+https://github.com/mosesajayi458-pixel/hng14-stage3-devops
 
-# 🔗 GitHub Repository
-
-[https://github.com/mosesajayi458-pixel/hng14-stage3-devops](https://github.com/mosesajayi458-pixel/hng14-stage3-devops)
-
----
-
-# 👨‍💻 Author
-
+👨‍💻 Author
 Olowookere Damilola
 DevOps / DevSecOps Track
-
-````
-
----
-
+✅ Turn this into a 1-page cheat sheet for defense
+✅ Or simulate a live panel interview (hard questions)
+✅ Or help you tighten your spoken explanation (1–2 min pitch)
